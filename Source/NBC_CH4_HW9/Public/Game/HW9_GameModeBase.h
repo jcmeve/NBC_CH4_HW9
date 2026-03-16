@@ -27,15 +27,18 @@ public:
 	AHW9_GameModeBase();
 
 	void ChatCommit(const AHW9_PlayerController* InChattingPlayerController, const FString& InChatMessage);
+	void EndTurn(bool bTimeOut);
+	void NextTurn();
+	void SkipTurn();
 
 protected:
-	virtual void BeginPlay() override;
 	bool CheckDraw();
 	virtual void OnPostLogin(AController* NewPlayer) override;
 	virtual void Logout(AController* Exiting) override;
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Baseball")
 	int32 BaseballStringLength;
-
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Baseball")
+	double TurnTime;
 private:
 	void BroadcastChat(FString ChatResultMessage);
 	void BroadcastNotification(FString NotificationString);
@@ -46,4 +49,8 @@ private:
 	FString GenerateRandomNumbers();
 	UPROPERTY()
 	TArray<TObjectPtr<AHW9_PlayerController>> PlayerControllers;
+	
+private:
+	int32 CurrentPlayerIndex;
+	int32 InGamePlayerNum;
 };

@@ -9,7 +9,8 @@
 #include "Runtime/Core/Tests/Containers/TestUtils.h"
 
 AHW9_GameModeBase::AHW9_GameModeBase()
-	: BaseballStringLength(3)
+	: BaseballStringLength(3),
+	  TurnTime(10.0)
 {
 }
 
@@ -49,9 +50,16 @@ void AHW9_GameModeBase::ChatCommit(const AHW9_PlayerController* InChattingPlayer
 		return;
 	}
 
-
-	if (IsGuessNumberString(InChatMessage))
+	bool bIsTimeOut = false;
+	AHW9_GameStateBase* GameStateBase = GetGameState<AHW9_GameStateBase>();
+	if (IsValid(GameStateBase))
 	{
+		bIsTimeOut = GameStateBase->IsTimeOut();
+	}
+	check(PlayerControllers.IsValidIndex(CurrentPlayerIndex));
+	if (bIsTimeOut == false && PlayerControllers[CurrentPlayerIndex] == InChattingPlayerController &&  IsGuessNumberString(InChatMessage))
+	{
+		
 		FString ChatResultMessage(TEXT("[야구게임]"));
 		if (ChattingPlayerState->TryIncreaseGuessCount() == false)
 		{
@@ -90,6 +98,10 @@ void AHW9_GameModeBase::ChatCommit(const AHW9_PlayerController* InChattingPlayer
 			ChatResultMessage.Append(BaseballResultString);
 		}
 		BroadcastChat(ChatResultMessage);
+		if (!bIsGameEnd)
+		{
+			EndTurn(false);
+		}
 	}
 	else
 	{
@@ -105,16 +117,43 @@ void AHW9_GameModeBase::ChatCommit(const AHW9_PlayerController* InChattingPlayer
 	}
 }
 
-void AHW9_GameModeBase::BeginPlay()
+void AHW9_GameModeBase::EndTurn(bool bTimeOut)
 {
-	Super::BeginPlay();
+	if (bTimeOut)
+	{
+		check(PlayerControllers.IsValidIndex(CurrentPlayerIndex));
+		if (AHW9_PlayerState* PlayerState = PlayerControllers[CurrentPlayerIndex]->GetPlayerState<AHW9_PlayerState>())
+		{
+			PlayerState->TryIncreaseGuessCount();
+		}
+	}
+	NextTurn();
+}
 
+void AHW9_GameModeBase::NextTurn()
+{
+	if (PlayerControllers.IsEmpty())
+	{
+		return;
+	}
+	CurrentPlayerIndex = (CurrentPlayerIndex + 1) % InGamePlayerNum;
 	AHW9_GameStateBase* GameStateBase = GetGameState<AHW9_GameStateBase>();
 	if (IsValid(GameStateBase))
 	{
-		GameStateBase->SetAnswerString(GenerateRandomNumbers());
+		AHW9_PlayerState* PlayerState = PlayerControllers[CurrentPlayerIndex]->GetPlayerState<AHW9_PlayerState>();
+		if (PlayerState)
+		{
+			GameStateBase->StartTurnTimer(PlayerState->GetHW9PlayerName(), TurnTime);
+		}
 	}
 }
+
+void AHW9_GameModeBase::SkipTurn()
+{
+	NextTurn();
+}
+
+
 
 bool AHW9_GameModeBase::CheckDraw()
 {
@@ -158,6 +197,11 @@ void AHW9_GameModeBase::OnPostLogin(AController* NewPlayer)
 void AHW9_GameModeBase::Logout(AController* Exiting)
 {
 	AHW9_PlayerController* PlayerController = Cast<AHW9_PlayerController>(Exiting);
+	bool bShouldSkipTurn = false;
+	if (PlayerControllers.IsValidIndex(CurrentPlayerIndex) && PlayerControllers[CurrentPlayerIndex] == PlayerController)
+	{
+		bShouldSkipTurn = true;
+	}
 	if (IsValid(PlayerController))
 	{
 		PlayerControllers.RemoveSingle(PlayerController);
@@ -166,6 +210,17 @@ void AHW9_GameModeBase::Logout(AController* Exiting)
 	{
 		ResetGame();
 	}
+	else
+	{
+		InGamePlayerNum--;
+	}
+
+	if (bShouldSkipTurn)
+	{
+		CurrentPlayerIndex--;
+		SkipTurn();
+	}
+
 	Super::Logout(Exiting);
 }
 
@@ -202,6 +257,9 @@ void AHW9_GameModeBase::ResetGame()
 	{
 		return;
 	}
+	CurrentPlayerIndex = -1;
+	InGamePlayerNum = PlayerControllers.Num();
+	GameStateBase->ResetGame();
 	GameStateBase->SetAnswerString(GenerateRandomNumbers());
 	for (AHW9_PlayerController* PlayerController : PlayerControllers)
 	{
@@ -212,10 +270,12 @@ void AHW9_GameModeBase::ResetGame()
 			{
 				PlayerState->ResetCount(GameStateBase->GetMaxGuessCount());
 			}
-			PlayerController->ClientRPCCommitChat(TEXT("게임을 재시작합니다"));
+			PlayerController->ClientRPCCommitChat(TEXT("게임을 시작합니다"));
 		}
 	}
+	NextTurn();
 }
+
 
 bool AHW9_GameModeBase::IsGuessNumberString(const FString& InNumberString)
 {
@@ -249,7 +309,7 @@ FString AHW9_GameModeBase::GenerateRandomNumbers()
 	{
 		Numbers[i - 1] = i;
 	}
-	
+
 	for (int32 i = 0; i < BaseballStringLength; i++)
 	{
 		int32 Index = FMath::RandRange(0, Numbers.Num() - 1);

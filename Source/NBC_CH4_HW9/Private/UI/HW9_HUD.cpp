@@ -4,7 +4,9 @@
 #include "UI/HW9_HUD.h"
 
 #include "Components/EditableText.h"
+#include "Components/ProgressBar.h"
 #include "Components/TextBlock.h"
+#include "Game/TimerSubsystem.h"
 #include "Player/HW9_PlayerController.h"
 
 void UHW9_HUD::NativeConstruct()
@@ -15,6 +17,15 @@ void UHW9_HUD::NativeConstruct()
 		ChatInputBox->OnTextCommitted.AddDynamic(this, &ThisClass::OnChatInputTextCommitted);
 	}
 	OutputRowNum = 0;
+
+	if (UWorld* World = GetWorld())
+	{
+		if (UTimerSubsystem* Sub = World->GetSubsystem<UTimerSubsystem>())
+		{
+			Sub->OnTurnRemainTimeChanged.RemoveDynamic(this, &ThisClass::UpdateTimerDisplay);
+			Sub->OnTurnRemainTimeChanged.AddDynamic(this, &ThisClass::UpdateTimerDisplay);
+		}
+	}
 }
 
 void UHW9_HUD::NativeDestruct()
@@ -58,11 +69,29 @@ void UHW9_HUD::AddChatOutputText(const FString& ChatString)
 void UHW9_HUD::SetNotificationText(const FString& NotificationString)
 {
 	NotificationText->SetVisibility(ESlateVisibility::Visible);
-	GetWorld()->GetTimerManager().SetTimer(NotificationTimerHandle, this, &UHW9_HUD::ClearNotificationText, 5.0f, false);
+	GetWorld()->GetTimerManager().SetTimer(NotificationTimerHandle, this, &UHW9_HUD::ClearNotificationText, 5.0f,
+	                                       false);
 	NotificationText->SetText(FText::FromString(NotificationString));
 }
 
-void UHW9_HUD::ClearNotificationText()
+void UHW9_HUD::ClearNotificationText() const
 {
 	NotificationText->SetVisibility(ESlateVisibility::Hidden);
+}
+
+void UHW9_HUD::UpdateTimerDisplay(const FString& TurnPlayerName, double TurnRemainTime, double TurnTotalTime)
+{
+	// if (TurnTotalTime <= 0.0f)
+	// {
+	// 	 TurnTimerText->SetVisibility(ESlateVisibility::Hidden);
+	// 	 TurnTimerProgressBar->SetVisibility(ESlateVisibility::Hidden);
+	// }
+	// else
+	// {
+	// 	TurnTimerText->SetVisibility(ESlateVisibility::Visible);
+	// 	TurnTimerProgressBar->SetVisibility(ESlateVisibility::Visible);
+	// };
+	TurnTimerText->SetText(
+		FText::FromString(TurnPlayerName + TEXT("턴 남은 시간: ") + FString::Printf(TEXT("%.2lf"), TurnRemainTime)));
+	TurnTimerProgressBar->SetPercent(TurnRemainTime / TurnTotalTime);
 }
