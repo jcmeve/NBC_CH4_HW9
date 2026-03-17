@@ -57,9 +57,9 @@ void AHW9_GameModeBase::ChatCommit(const AHW9_PlayerController* InChattingPlayer
 		bIsTimeOut = GameStateBase->IsTimeOut();
 	}
 	check(PlayerControllers.IsValidIndex(CurrentPlayerIndex));
-	if (bIsTimeOut == false && PlayerControllers[CurrentPlayerIndex] == InChattingPlayerController &&  IsGuessNumberString(InChatMessage))
+	if (bIsTimeOut == false && PlayerControllers[CurrentPlayerIndex] == InChattingPlayerController &&
+		IsGuessNumberString(InChatMessage))
 	{
-		
 		FString ChatResultMessage(TEXT("[야구게임]"));
 		if (ChattingPlayerState->TryIncreaseGuessCount() == false)
 		{
@@ -127,7 +127,13 @@ void AHW9_GameModeBase::EndTurn(bool bTimeOut)
 			PlayerState->TryIncreaseGuessCount();
 		}
 	}
-	NextTurn();
+	if (CheckDraw())
+	{
+		ResetGame();
+	}else
+	{
+		NextTurn();
+	}
 }
 
 void AHW9_GameModeBase::NextTurn()
@@ -154,11 +160,11 @@ void AHW9_GameModeBase::SkipTurn()
 }
 
 
-
 bool AHW9_GameModeBase::CheckDraw()
 {
-	for (AHW9_PlayerController* PlayerController : PlayerControllers)
+	for (int32 i = 0; i < InGamePlayerNum; ++i)
 	{
+		AHW9_PlayerController* PlayerController = PlayerControllers[i];
 		if (IsValid(PlayerController))
 		{
 			AHW9_PlayerState* PlayerState = PlayerController->GetPlayerState<AHW9_PlayerState>();
